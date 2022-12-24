@@ -23,6 +23,8 @@
 * [ ] **FS Lab**
 * [ ] **Mmap Lab**
 
+## 資源
+[Resources](https://pdos.csail.mit.edu/6.828/2020/schedule.html)
 ## 聯絡我
 
 📌[E-mail](linhoway@gmai)
