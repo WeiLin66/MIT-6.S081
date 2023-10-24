@@ -1,27 +1,6 @@
 # util Lab 實驗記錄
 
-## 實現 sleep 系統調用
-
-### 編寫 `sleep.c`
-
-```c
-#include "kernel/types.h"
-#include "user/user.h"
-
-int main(int argc, char* argv[]){
-
-	if(argc < 2){
-		fprintf(2,"too few argument for sleep \"system\" call!\n");
-	}
-
-	unsigned int interval = atoi(argv[1]);
-	// interval *= 1000; // msec to sec
-	sleep(interval);
-	exit(0);
-}
-```
-
-### 修改 `Makefile`
+## 修改 Makefile
 
 ```makefile
 UPROGS=\
@@ -41,5 +20,146 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
-	$U/_sleep\ # 增加 sleep 編譯依賴
+	$U/_sleep\ # add new command here
+```
+
+## sleep
+
+- 使用 Linux 提供的 `sleep` system call 實現
+
+```c
+#include "kernel/types.h"
+#include "user/user.h"
+
+int main(int argc, char* argv[]){
+
+	if(argc < 2){
+		fprintf(2,"too few argument for sleep \"system\" call!\n");
+	}
+
+	unsigned int interval = atoi(argv[1]);
+	// interval *= 1000; // msec to sec
+	sleep(interval);
+	exit(0);
+}
+```
+
+## pingpong
+
+- 該題要求使用 `pipe` system call 來實現
+- 數據會在父子進程之間傳遞
+- 創建一個管道後會在系統內核分配空間
+- 使用 `pipe` 創建的 fd 會繼承給子進程，關鍵在於管理雙方的讀寫方式
+
+```c
+#include "kernel/types.h"
+#include "user.h"
+
+int main(int argc, char* argv[]){
+
+    int pip[2];
+    uchar data = 10;
+    int pid;
+
+    // Create two pipes
+    if(pipe(pip) < 0){
+        fprintf(2,"create pipe failed!\n");
+        exit(1);
+    }
+
+    if((pid = fork()) < 0){
+        fprintf(2, "fork error\n");
+        exit(1);
+    }
+
+    if(pid == 0){    /* child process */
+        while(read(pip[0],&data,1) <= 0);
+        close(pip[0]);
+        pid = getpid();
+        printf("%d: received ping (%d)\n",pid,data);
+        data = 30;
+        write(pip[1],&data,1);
+        close(pip[1]);
+        exit(0);
+    }else{    /* parent process */
+        data = 20;
+        write(pip[1],&data,1);
+        close(pip[1]);
+        wait(0);
+        while(read(pip[0],&data,1) <= 0);
+        pid = getpid();
+        printf("%d: received pong (%d)\n",pid,data);
+        close(pip[0]);
+        exit(0);
+    }
+}
+```
+
+## primes
+
+- 與前一題 `pingpong` 類似，但需要遞迴的創建管道，持續的讀取、寫入
+
+```c
+#include "kernel/types.h"
+#include "user/user.h"
+
+#define INTEGER_SIZE sizeof(int)
+
+void primes(int* pip){
+
+    int p = 0, q = 0;
+    int pid;
+
+    while(read(pip[0],&p,INTEGER_SIZE) < INTEGER_SIZE);
+    close(pip[1]);
+    printf("primes %d\n",p);
+
+    int new_pip[2];
+    
+    if(pipe(new_pip) < 0){
+        fprintf(2,"created pipe failed!\n");
+        exit(1);        
+    }
+
+    pid = fork();
+
+    if(pid == 0){    /* child process */
+        primes(new_pip);
+        exit(0);
+    }else{    /* parant process */
+        while(read(pip[0],&q,INTEGER_SIZE) >= INTEGER_SIZE){
+            if(q % p){
+                write(new_pip[1],&q,INTEGER_SIZE);
+            }
+        }
+        close(new_pip[0]);
+        wait(0);
+        exit(0);
+    }
+}
+
+int main(int argc, char* argv[]){
+
+    int pip[2];
+    int pid;
+
+    if(pipe(pip) < 0){
+        fprintf(2,"created pipe failed!\n");
+        exit(1);
+    }
+
+    pid = fork();
+
+    if(pid == 0){   /* child process */
+        primes(pip);
+        exit(0);
+    }else{    /* parent process */
+        close(pip[0]); // disable read
+        for(int i=2; i<=35; ++i){
+            write(pip[1],&i,INTEGER_SIZE);
+        }
+        wait(0);
+        exit(0);
+    }
+}
 ```
