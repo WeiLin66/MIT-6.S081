@@ -6,51 +6,46 @@
 
 int main(int argc, char *argv[]) {
     
-    if (argc < 2) {
-        fprintf(2, "Usage: %s command [options]\n", argv[0]);
+    if(argc < 2){
+        fprintf(2,"too few argument for xargs \"system\" call!\n");
         exit(1);
     }
 
-    char *cmd = argv[1];
-    char *cmd_argv[MAXARG];
-    cmd_argv[0] = cmd;
-
-    char buf[MAXBUF];
-    char *p = buf;
-    int cmd_argc = 1;
-
-    while (gets(p, MAXBUF - (p - buf)) != 0) {
-        char *q = p;
-        while (1) {
-            char *s = strchr(q, ' ');
-            if (s == 0) {
-                break;
-            }
-            *s = 0;
-            if (*q != 0) {
-                cmd_argv[cmd_argc] = q;
-                cmd_argc++;
-            }
-            q = s + 1;
-        }
-
-        if (*q != 0) {
-            cmd_argv[cmd_argc] = q;
-            cmd_argc++;
-        }
-        cmd_argv[cmd_argc] = 0;
-
-        if (fork() == 0) {
-            exec(cmd, cmd_argv);
-            fprintf(2, "exec %s failed\n", cmd);
-            exit(1);
-        } else {
-            wait(0);
-        }
-
-        cmd_argc = 1;
-        p = buf;
+    char buf[MAXBUF] = {0};
+    char* buf_p = buf;
+    char* cmd[MAXARG] = {0};
+    int p = 0;
+    int cnt = 0;
+   
+    for(int i=1; i<argc; ++i){
+        cmd[i-1] = argv[i];
     }
 
-    return 0;
+    if((cnt = read(0,buf,MAXBUF-1)) == 0){
+        exit(0);
+    }else if(cnt < 0){
+        fprintf(2,"xargs read stdin failed\n");
+        exit(1);
+    }
+
+    buf[cnt] = 0;
+
+    while(p < cnt){
+        for(; buf[p] != '\n'; ++p);
+
+        buf[p] = 0;
+        cmd[argc-1] = buf_p;
+        ++p;
+        buf_p = buf + p;
+
+        if(fork() == 0){
+            exec(cmd[0],cmd);
+            fprintf(2,"exec() failed\n");
+            exit(1);
+        }else{
+            wait(0);
+        }
+    }
+    
+    exit(0);
 }
